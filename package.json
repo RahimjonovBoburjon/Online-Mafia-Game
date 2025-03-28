@@ -1,7 +1,7 @@
 {
   "name": "vue-mafia-game",
   "private": true,
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,10 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.5.13"
+    "firebase": "^10.14.1",
+    "pinia": "^2.1.7",
+    "socket.io-client": "^4.7.4",
+    "vue": "^3.5.13",
+    "vue-router": "^4.2.5"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
     "vite": "^6.2.0"
   }
 }
