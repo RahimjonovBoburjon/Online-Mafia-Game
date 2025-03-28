@@ -1,23 +1,22 @@
 const express = require('express')
-const { createServer } = require('http')
+const http = require('http')
 const { Server } = require('socket.io')
 const cors = require('cors')
 
 const app = express()
-app.use(cors({
-  origin: ['http://localhost:8080', 'http://localhost:5173'],
-  methods: ['GET', 'POST'],
-  credentials: true
-}))
-
-const httpServer = createServer(app)
-const io = new Server(httpServer, {
+const server = http.createServer(app)
+const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:8080', 'http://localhost:5173'],
-    methods: ['GET', 'POST'],
+    origin: ["http://localhost:8080", "http://localhost:5173", "http://192.168.1.48:8080"],
+    methods: ["GET", "POST"],
     credentials: true
   }
 })
+
+app.use(cors({
+  origin: ["http://localhost:8080", "http://localhost:5173", "http://192.168.1.48:8080"],
+  credentials: true
+}))
 
 const games = new Map()
 
@@ -205,42 +204,45 @@ function checkWinCondition(game) {
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id)
-  
-  socket.on('joinGame', ({ gameId, playerId }) => {
-    socket.join(gameId)
-    const game = gameState.joinGame(gameId, playerId)
-    if (game) {
-      io.to(gameId).emit('gameUpdate', game)
+
+  socket.on('game:message', (data) => {
+    try {
+      io.to(data.gameId).emit('game:message', {
+        ...data,
+        timestamp: new Date()
+      })
+    } catch (error) {
+      console.error('Error handling game message:', error)
+      socket.emit('error', { message: 'Failed to send message' })
     }
   })
-  
-  socket.on('startGame', ({ gameId }) => {
-    const game = gameState.startGame(gameId)
-    if (game) {
-      io.to(gameId).emit('gameUpdate', game)
+
+  socket.on('joinGame', (gameId) => {
+    try {
+      socket.join(gameId)
+      console.log(`Client ${socket.id} joined game ${gameId}`)
+    } catch (error) {
+      console.error('Error joining game:', error)
+      socket.emit('error', { message: 'Failed to join game' })
     }
   })
-  
-  socket.on('nightAction', ({ gameId, playerId, action, targetId }) => {
-    const game = gameState.performNightAction(gameId, playerId, action, targetId)
-    if (game) {
-      io.to(gameId).emit('gameUpdate', game)
+
+  socket.on('leaveGame', (gameId) => {
+    try {
+      socket.leave(gameId)
+      console.log(`Client ${socket.id} left game ${gameId}`)
+    } catch (error) {
+      console.error('Error leaving game:', error)
+      socket.emit('error', { message: 'Failed to leave game' })
     }
   })
-  
-  socket.on('vote', ({ gameId, voterId, targetId }) => {
-    const game = gameState.votePlayer(gameId, voterId, targetId)
-    if (game) {
-      io.to(gameId).emit('gameUpdate', game)
-    }
-  })
-  
+
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id)
   })
 })
 
 const PORT = process.env.PORT || 3000
-httpServer.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 }) 

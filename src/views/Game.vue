@@ -1,29 +1,30 @@
 <template>
   <div class="min-h-screen bg-gray-900 text-white p-8">
-    <div class="max-w-6xl mx-auto">
-      <div class="flex justify-between items-center mb-8">
-        <div>
-          <h1 class="text-3xl font-bold">Game #{{ gameId.slice(0, 6) }}</h1>
-          <p class="text-gray-400">Phase: {{ gamePhase }}</p>
-        </div>
-        <div class="text-right">
-          <p class="text-sm text-gray-400">Your Role: {{ currentPlayer?.role || 'Unknown' }}</p>
-          <p class="text-sm text-gray-400">Alive Players: {{ alivePlayers.length }}/{{ players.length }}</p>
-        </div>
+    <div class="max-w-4xl mx-auto">
+      <div v-if="loading" class="text-center">
+        Loading game...
       </div>
+      
+      <div v-else-if="error" class="bg-red-500 text-white p-4 rounded-lg">
+        {{ error }}
+      </div>
+      
+      <div v-else-if="game" class="space-y-6">
+        <div class="flex justify-between items-center">
+          <h1 class="text-3xl font-bold">Game #{{ game.id.slice(0, 6) }}</h1>
+          <div class="text-sm text-gray-400">
+            Phase: {{ game.phase }}
+          </div>
+        </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Players -->
         <div class="bg-gray-800 p-6 rounded-lg">
           <h2 class="text-xl font-bold mb-4">Players</h2>
-          <div class="space-y-2">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div
-              v-for="player in players"
+              v-for="player in game.players"
               :key="player.id"
-              class="flex items-center justify-between p-3 bg-gray-700 rounded-lg"
-              :class="{
-                'opacity-50': !player.isAlive,
-                'border-2 border-yellow-500': isCurrentPlayer(player)
-              }"
+              class="bg-gray-700 p-4 rounded-lg"
             >
               <div class="flex items-center space-x-2">
                 <span class="w-2 h-2 rounded-full" :class="{
@@ -32,92 +33,21 @@
                 }"></span>
                 <span>{{ player.displayName }}</span>
               </div>
-              <div v-if="canVote && player.isAlive && !isCurrentPlayer(player)">
-                <button
-                  @click="votePlayer(player.id)"
-                  class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition duration-300"
-                >
-                  Vote
-                </button>
+              <div v-if="!player.isAlive" class="text-sm text-red-400 mt-1">
+                Eliminated
               </div>
             </div>
           </div>
         </div>
 
-        <div class="bg-gray-800 p-6 rounded-lg">
-          <h2 class="text-xl font-bold mb-4">Actions</h2>
-          <div class="space-y-4">
-            <div v-if="gamePhase === 'night' && isCurrentPlayerAlive">
-              <div v-if="currentPlayer?.role === 'mafia'" class="space-y-2">
-                <h3 class="font-semibold">Select a player to eliminate:</h3>
-                <div class="space-y-2">
-                  <button
-                    v-for="player in alivePlayers"
-                    :key="player.id"
-                    @click="performNightAction('eliminate', player.id)"
-                    class="w-full bg-red-600 hover:bg-red-700 p-2 rounded transition duration-300"
-                    :disabled="!canPerformNightAction"
-                  >
-                    Eliminate {{ player.displayName }}
-                  </button>
-                </div>
-              </div>
-
-              <div v-if="currentPlayer?.role === 'doctor'" class="space-y-2">
-                <h3 class="font-semibold">Select a player to save:</h3>
-                <div class="space-y-2">
-                  <button
-                    v-for="player in alivePlayers"
-                    :key="player.id"
-                    @click="performNightAction('save', player.id)"
-                    class="w-full bg-green-600 hover:bg-green-700 p-2 rounded transition duration-300"
-                    :disabled="!canPerformNightAction"
-                  >
-                    Save {{ player.displayName }}
-                  </button>
-                </div>
-              </div>
-
-              <div v-if="currentPlayer?.role === 'detective'" class="space-y-2">
-                <h3 class="font-semibold">Select a player to investigate:</h3>
-                <div class="space-y-2">
-                  <button
-                    v-for="player in alivePlayers"
-                    :key="player.id"
-                    @click="performNightAction('investigate', player.id)"
-                    class="w-full bg-blue-600 hover:bg-blue-700 p-2 rounded transition duration-300"
-                    :disabled="!canPerformNightAction"
-                  >
-                    Investigate {{ player.displayName }}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="gamePhase === 'day'" class="space-y-2">
-              <h3 class="font-semibold">Vote for a player to eliminate:</h3>
-              <div class="space-y-2">
-                <button
-                  v-for="player in alivePlayers"
-                  :key="player.id"
-                  @click="votePlayer(player.id)"
-                  class="w-full bg-red-600 hover:bg-red-700 p-2 rounded transition duration-300"
-                  :disabled="!canVote"
-                >
-                  Vote for {{ player.displayName }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
+        <!-- Chat -->
         <div class="bg-gray-800 p-6 rounded-lg">
           <h2 class="text-xl font-bold mb-4">Chat</h2>
-          <div class="h-[400px] overflow-y-auto mb-4 space-y-2">
+          <div class="h-64 overflow-y-auto mb-4 space-y-2">
             <div
               v-for="message in messages"
-              :key="message.id"
-              class="bg-gray-700 p-2 rounded"
+              :key="message.timestamp"
+              class="bg-gray-700 p-2 rounded-lg"
             >
               <span class="font-semibold">{{ message.playerName }}:</span>
               <span class="ml-2">{{ message.content }}</span>
@@ -129,11 +59,11 @@
               @keyup.enter="sendMessage"
               type="text"
               placeholder="Type a message..."
-              class="flex-1 bg-gray-700 text-white p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="flex-1 bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               @click="sendMessage"
-              class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition duration-300"
+              class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition duration-300"
             >
               Send
             </button>
@@ -145,77 +75,67 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../store/auth'
 import { useGameStore } from '../store/game'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const gameStore = useGameStore()
 
-const gameId = route.params.id
+const loading = ref(true)
+const error = ref(null)
+const game = ref(null)
+const messages = ref([])
 const newMessage = ref('')
-let unsubscribe = null
-
-const players = computed(() => gameStore.players)
-const gamePhase = computed(() => gameStore.gamePhase)
-const messages = computed(() => gameStore.messages)
-const currentPlayer = computed(() => gameStore.currentPlayer)
-
-const alivePlayers = computed(() => players.value.filter(p => p.isAlive))
-const isCurrentPlayerAlive = computed(() => currentPlayer.value?.isAlive)
-const canVote = computed(() => gamePhase.value === 'day' && isCurrentPlayerAlive.value)
-const canPerformNightAction = computed(() => {
-  if (!isCurrentPlayerAlive.value) return false
-  if (gamePhase.value !== 'night') return false
-  return true
-})
 
 onMounted(async () => {
-  const user = authStore.currentUser
-  if (!user) {
-    router.push('/login')
-    return
-  }
+  try {
+    const gameId = route.params.id
+    if (!gameId) {
+      throw new Error('Game ID not found')
+    }
 
-  unsubscribe = gameStore.subscribeToGame(gameId)
+    // O'yin ma'lumotlarini olish
+    const userGame = await gameStore.getUserGame(authStore.currentUser.uid)
+    if (!userGame || userGame.id !== gameId) {
+      throw new Error('You are not part of this game')
+    }
+
+    // O'yin ma'lumotlariga obuna bo'lish
+    gameStore.subscribeToGame(gameId)
+
+    // O'yin ma'lumotlarini kuzatish
+    game.value = gameStore.currentGame
+    messages.value = gameStore.messages
+  } catch (err) {
+    console.error('Error loading game:', err)
+    error.value = err.message
+  } finally {
+    loading.value = false
+  }
 })
 
 onUnmounted(() => {
-  if (unsubscribe) {
-    unsubscribe()
-  }
+  gameStore.unsubscribeFromGame()
 })
-
-const isCurrentPlayer = (player) => {
-  return player.id === authStore.currentUser?.uid
-}
-
-const performNightAction = async (action, targetId) => {
-  try {
-    await gameStore.performNightAction(gameId, action, targetId)
-  } catch (error) {
-    console.error('Failed to perform night action:', error)
-  }
-}
-
-const votePlayer = async (playerId) => {
-  try {
-    await gameStore.votePlayer(gameId, playerId)
-  } catch (error) {
-    console.error('Failed to vote:', error)
-  }
-}
 
 const sendMessage = async () => {
   if (!newMessage.value.trim()) return
-  
+
   try {
-    await gameStore.sendMessage(gameId, newMessage.value)
+    await gameStore.sendMessage(route.params.id, {
+      playerId: authStore.currentUser.uid,
+      playerName: authStore.currentUser.displayName,
+      content: newMessage.value,
+      timestamp: new Date()
+    })
     newMessage.value = ''
-  } catch (error) {
-    console.error('Failed to send message:', error)
+  } catch (err) {
+    console.error('Error sending message:', err)
+    error.value = err.message
   }
 }
 </script> 

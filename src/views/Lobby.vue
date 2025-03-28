@@ -31,9 +31,10 @@
               </div>
               <button
                 @click="joinGame(game.id)"
-                class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition duration-300"
+                :disabled="isInGame(game.id)"
+                class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-2 rounded transition duration-300"
               >
-                Join Game
+                {{ isInGame(game.id) ? 'Already Joined' : 'Join Game' }}
               </button>
             </div>
           </div>
@@ -120,6 +121,10 @@ onUnmounted(() => {
   }
 })
 
+const isInGame = (gameId) => {
+  return currentGame.value?.id === gameId
+}
+
 const createNewGame = async () => {
   try {
     const gameId = await gameStore.createGame(authStore.currentUser.uid)
@@ -143,6 +148,11 @@ const joinGame = async (gameId) => {
   try {
     const success = await gameStore.joinGame(gameId, authStore.currentUser.uid)
     if (success) {
+      const userGame = await gameStore.getUserGame(authStore.currentUser.uid)
+      if (userGame) {
+        currentGame.value = userGame
+        isHost.value = userGame.hostId === authStore.currentUser.uid
+      }
       router.push(`/game/${gameId}`)
     }
   } catch (error) {
