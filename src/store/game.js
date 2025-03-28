@@ -171,10 +171,25 @@ export const useGameStore = defineStore('game', () => {
   const getUserGame = async (userId) => {
     try {
       const gamesRef = collection(db, 'games')
-      const q = query(gamesRef, where('players', 'array-contains', { id: userId }))
+      // O'yinchilarni tekshirish uchun so'rov
+      const q = query(
+        gamesRef,
+        where('players', 'array-contains', { id: userId, isAlive: true })
+      )
       const snapshot = await getDocs(q)
       
       if (snapshot.empty) {
+        // Agar o'yin topilmasa, barcha o'yinlarni tekshirish
+        const allGamesQuery = query(gamesRef)
+        const allGamesSnapshot = await getDocs(allGamesQuery)
+        
+        for (const doc of allGamesSnapshot.docs) {
+          const gameData = doc.data()
+          if (gameData.players.some(p => p.id === userId)) {
+            return { id: doc.id, ...gameData }
+          }
+        }
+        
         return null
       }
 

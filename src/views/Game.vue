@@ -7,6 +7,12 @@
       
       <div v-else-if="error" class="bg-red-500 text-white p-4 rounded-lg">
         {{ error }}
+        <button 
+          @click="router.push('/lobby')"
+          class="mt-4 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition duration-300"
+        >
+          Back to Lobby
+        </button>
       </div>
       
       <div v-else-if="game" class="space-y-6">
@@ -99,8 +105,12 @@ onMounted(async () => {
     }
 
     // O'yin ma'lumotlarini olish
-    const userGame = await gameStore.getUserGame(authStore.currentUser.uid)
-    if (!userGame || userGame.id !== gameId) {
+    const gameDoc = await gameStore.getUserGame(authStore.currentUser.uid)
+    if (!gameDoc) {
+      throw new Error('You are not part of any game')
+    }
+
+    if (gameDoc.id !== gameId) {
       throw new Error('You are not part of this game')
     }
 
@@ -108,8 +118,8 @@ onMounted(async () => {
     gameStore.subscribeToGame(gameId)
 
     // O'yin ma'lumotlarini kuzatish
-    game.value = gameStore.currentGame
-    messages.value = gameStore.messages
+    game.value = gameDoc
+    messages.value = gameDoc.messages || []
   } catch (err) {
     console.error('Error loading game:', err)
     error.value = err.message
