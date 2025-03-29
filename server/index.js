@@ -5,18 +5,29 @@ const cors = require('cors')
 
 const app = express()
 const server = http.createServer(app)
+
+// CORS sozlamalari
+app.use(cors({
+  origin: ["http://localhost:8080", "http://localhost:5173", "http://192.168.1.48:8080"],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}))
+
+// Socket.io konfiguratsiyasi
 const io = new Server(server, {
   cors: {
     origin: ["http://localhost:8080", "http://localhost:5173", "http://192.168.1.48:8080"],
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
+  },
+  path: '/socket.io/',
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  connectTimeout: 45000
 })
-
-app.use(cors({
-  origin: ["http://localhost:8080", "http://localhost:5173", "http://192.168.1.48:8080"],
-  credentials: true
-}))
 
 const games = new Map()
 
@@ -202,6 +213,7 @@ function checkWinCondition(game) {
   }
 }
 
+// Socket.io event handlers
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id)
 
@@ -221,6 +233,12 @@ io.on('connection', (socket) => {
     try {
       socket.join(gameId)
       console.log(`Client ${socket.id} joined game ${gameId}`)
+      
+      // O'yin ma'lumotlarini yangi o'yinchiga yuborish
+      const game = games.get(gameId)
+      if (game) {
+        socket.emit('game:update', game)
+      }
     } catch (error) {
       console.error('Error joining game:', error)
       socket.emit('error', { message: 'Failed to join game' })
@@ -237,12 +255,29 @@ io.on('connection', (socket) => {
     }
   })
 
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id)
+  socket.on('startGame', (gameId) => {
+    try {
+      const game = gameState.startGame(gameId)
+      if (game) {
+        // Barcha o'yinchilarga yangi o'yin holatini yuborish
+        io.to(gameId).emit('game:update', game)
+      }
+    } catch (error) {
+      console.error('Error starting game:', error)
+      socket.emit('error', { message: 'Failed to start game' })
+    }
+  })
+
+  socket.on('disconnect', (reason) => {
+    console.log('Client disconnected:', socket.id, reason)
+  })
+
+  socket.on('error', (error) => {
+    console.error('Socket error:', error)
   })
 })
 
 const PORT = process.env.PORT || 3000
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`)
 }) 

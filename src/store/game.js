@@ -34,6 +34,16 @@ export const useGameStore = defineStore('game', () => {
 
       // Socket.io orqali o'yin xabarlarini tinglash
       socket.emit('joinGame', gameId)
+      
+      // O'yin yangilanishlarini tinglash
+      socket.on('game:update', (gameData) => {
+        currentGame.value = gameData
+        players.value = gameData.players
+        gamePhase.value = gameData.phase
+        messages.value = gameData.messages || []
+      })
+
+      // Xabarlarni tinglash
       socket.on('game:message', (message) => {
         if (message.gameId === gameId) {
           messages.value.push(message)
@@ -53,6 +63,7 @@ export const useGameStore = defineStore('game', () => {
       gameUnsubscribe = null
     }
     socket.off('game:message')
+    socket.off('game:update')
   }
 
   const subscribeToGames = (callback) => {
@@ -160,6 +171,9 @@ export const useGameStore = defineStore('game', () => {
         currentRound: 1,
         lastAction: new Date()
       })
+
+      // Socket.io orqali o'yinni boshlash
+      socket.emit('startGame', gameId)
 
       return true
     } catch (error) {
